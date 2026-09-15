@@ -118,13 +118,6 @@ export default function AdminLoginModal({ isOpen, onClose, onLoginSuccess }) {
             )}
           </button>
         </form>
-
-        {/* Footer info */}
-        <div className="p-4 bg-slate-50 dark:bg-slate-800/40 border-t border-slate-100 dark:border-slate-800 text-center">
-          <p className="text-[11px] text-slate-400">
-            Пароль по умолчанию: <code className="bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-700 dark:text-slate-300 font-mono">admin123</code> (изменяется в настройках Infrlo)
-          </p>
-        </div>
       </div>
     </div>
   );
