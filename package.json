@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "postinstall": "npm run install:all",
     "install:all": "npm install --prefix server && npm install --prefix client",
     "build": "npm run build --prefix client",
     "build:all": "npm run install:all && npm run build",
@@ -11,7 +12,7 @@
     "dev:client": "npm run dev --prefix client",
     "dev": "concurrently -n \"SERVER,CLIENT\" -c \"blue,green\" \"npm run dev:server\" \"npm run dev:client\""
   },
-  "devDependencies": {
+  "dependencies": {
     "concurrently": "^9.1.2"
   }
 }

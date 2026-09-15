@@ -3,6 +3,7 @@ import cors from 'cors';
 import cron from 'node-cron';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import db from './db.js';
 import { fetchAllNews } from './newsFetcher.js';
@@ -14,11 +15,16 @@ const __dirname = path.dirname(__filename);
 const clientDistPath = path.join(__dirname, '../client/dist');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
 app.use(express.static(clientDistPath));
+
+// Health check endpoint for cloud platforms
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', uptime: process.uptime() });
+});
 
 // 1. GET /api/news - List articles with pagination, category filter, and search
 app.get('/api/news', (req, res) => {
@@ -201,12 +207,35 @@ app.get('/api/stats', (req, res) => {
 
 // Fallback route for SPA frontend
 app.get('*', (req, res) => {
-  res.sendFile(path.join(clientDistPath, 'index.html'));
+  const indexPath = path.join(clientDistPath, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(200).send(`
+      <!doctype html>
+      <html>
+        <head><title>ИнфоЛента API</title><meta charset="utf-8"></head>
+        <body style="font-family: sans-serif; padding: 40px; text-align: center;">
+          <h2>🚀 Сервер новостей запущен!</h2>
+          <p>Фронтенд еще не скомпилирован в client/dist.</p>
+          <p>Проверьте API: <a href="/api/news">/api/news</a> | <a href="/health">/health</a></p>
+        </body>
+      </html>
+    `);
+  }
+});
+
+// Global error handlers
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection:', reason);
 });
 
 // Start Express server
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 News Server running on port ${PORT}`);
+  console.log(`🚀 News Server running on port ${PORT} (env.PORT: ${process.env.PORT})`);
 
   // Schedule auto-fetch every 10 minutes
   cron.schedule('*/10 * * * *', async () => {
