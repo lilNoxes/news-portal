@@ -1,4 +1,5 @@
 import express from 'express';
+import http from 'http';
 import cors from 'cors';
 import cron from 'node-cron';
 import dotenv from 'dotenv';
@@ -233,44 +234,50 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection:', reason);
 });
 
-// Start Express server
-const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 News Server running on port ${PORT} (process.env.PORT: ${process.env.PORT || 'not set'})`);
+// Start HTTP servers on all common cloud ports (dual-stack IPv4 + IPv6)
+const candidatePorts = [
+  process.env.PORT,
+  3000,
+  8080,
+  5000,
+  80
+].filter(Boolean).map(p => parseInt(p, 10));
 
-  // Schedule auto-fetch every 10 minutes
-  cron.schedule('*/10 * * * *', async () => {
-    console.log('⏰ Scheduled cron: starting auto-refresh of news...');
-    try {
-      await fetchAllNews();
-    } catch (err) {
-      console.error('Scheduled fetch error:', err);
-    }
-  });
+const portsToListen = [...new Set(candidatePorts)];
 
-  // Defer initial fetch so the server responds to gateway health checks immediately!
-  setTimeout(() => {
-    try {
-      const count = db.prepare('SELECT COUNT(*) as count FROM articles').get().count;
-      if (count < 20) {
-        console.log(`Database has only ${count} articles. Launching background initial fetch...`);
-        fetchAllNews().catch(err => console.error('Initial fetch error:', err));
-      }
-    } catch (err) {
-      console.error('Error starting initial fetch:', err);
-    }
-  }, 1000);
-});
-
-// Also bind to port 3000 if PORT was assigned to another port by cloud provider
-if (process.env.PORT && String(process.env.PORT) !== '3000') {
+for (const port of portsToListen) {
   try {
-    const secondary = app.listen(3000, '0.0.0.0', () => {
-      console.log('🚀 Also listening on fallback port 3000');
+    const s = http.createServer(app);
+    s.listen(port, () => {
+      console.log(`🚀 News Server listening on port ${port} (all interfaces)`);
     });
-    secondary.on('error', (e) => {
-      console.log('Secondary port 3000 notice:', e.message);
+    s.on('error', (err) => {
+      console.log(`Port ${port} notice: ${err.message}`);
     });
   } catch (err) {
-    // Ignore
+    console.log(`Port ${port} error: ${err.message}`);
   }
 }
+
+// Schedule auto-fetch every 10 minutes
+cron.schedule('*/10 * * * *', async () => {
+  console.log('⏰ Scheduled cron: starting auto-refresh of news...');
+  try {
+    await fetchAllNews();
+  } catch (err) {
+    console.error('Scheduled fetch error:', err);
+  }
+});
+
+// Defer initial fetch so the server responds to gateway health checks immediately!
+setTimeout(() => {
+  try {
+    const count = db.prepare('SELECT COUNT(*) as count FROM articles').get().count;
+    if (count < 20) {
+      console.log(`Database has only ${count} articles. Launching background initial fetch...`);
+      fetchAllNews().catch(err => console.error('Initial fetch error:', err));
+    }
+  } catch (err) {
+    console.error('Error starting initial fetch:', err);
+  }
+}, 1000);
