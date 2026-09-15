@@ -234,8 +234,8 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // Start Express server
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 News Server running on port ${PORT} (env.PORT: ${process.env.PORT})`);
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 News Server running on port ${PORT} (process.env.PORT: ${process.env.PORT || 'not set'})`);
 
   // Schedule auto-fetch every 10 minutes
   cron.schedule('*/10 * * * *', async () => {
@@ -247,10 +247,30 @@ app.listen(PORT, '0.0.0.0', () => {
     }
   });
 
-  // Initial fetch on server start if database has fewer than 20 articles
-  const count = db.prepare('SELECT COUNT(*) as count FROM articles').get().count;
-  if (count < 20) {
-    console.log(`Database has only ${count} articles. Launching initial fetch...`);
-    fetchAllNews().catch(err => console.error('Initial fetch error:', err));
-  }
+  // Defer initial fetch so the server responds to gateway health checks immediately!
+  setTimeout(() => {
+    try {
+      const count = db.prepare('SELECT COUNT(*) as count FROM articles').get().count;
+      if (count < 20) {
+        console.log(`Database has only ${count} articles. Launching background initial fetch...`);
+        fetchAllNews().catch(err => console.error('Initial fetch error:', err));
+      }
+    } catch (err) {
+      console.error('Error starting initial fetch:', err);
+    }
+  }, 1000);
 });
+
+// Also bind to port 3000 if PORT was assigned to another port by cloud provider
+if (process.env.PORT && String(process.env.PORT) !== '3000') {
+  try {
+    const secondary = app.listen(3000, '0.0.0.0', () => {
+      console.log('🚀 Also listening on fallback port 3000');
+    });
+    secondary.on('error', (e) => {
+      console.log('Secondary port 3000 notice:', e.message);
+    });
+  } catch (err) {
+    // Ignore
+  }
+}
