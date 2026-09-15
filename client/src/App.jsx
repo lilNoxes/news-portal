@@ -3,9 +3,10 @@ import Header from './components/Header';
 import CategoryFilter from './components/CategoryFilter';
 import NewsCard from './components/NewsCard';
 import NewsModal from './components/NewsModal';
-import SourcesModal from './components/SourcesModal';
+import AdminLoginModal from './components/AdminLoginModal';
+import AdminPanelModal from './components/AdminPanelModal';
 import StatsBanner from './components/StatsBanner';
-import { Newspaper, Loader2, Sparkles, Bookmark, ArrowUp } from 'lucide-react';
+import { Newspaper, Loader2, Sparkles, Bookmark, ArrowUp, Lock, ShieldCheck } from 'lucide-react';
 
 export default function App() {
   // Theme state
@@ -14,6 +15,12 @@ export default function App() {
     if (saved) return saved === 'dark';
     return window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
+
+  // Admin Auth state
+  const [adminToken, setAdminToken] = useState(() => localStorage.getItem('news_admin_token') || '');
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminLoginOpen, setAdminLoginOpen] = useState(false);
+  const [adminPanelOpen, setAdminPanelOpen] = useState(false);
 
   // News states
   const [articles, setArticles] = useState([]);
@@ -42,7 +49,6 @@ export default function App() {
 
   // Modals
   const [activeModalArticle, setActiveModalArticle] = useState(null);
-  const [sourcesModalOpen, setSourcesModalOpen] = useState(false);
 
   // Scroll to top button state
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -57,6 +63,41 @@ export default function App() {
       localStorage.setItem('news_theme', 'light');
     }
   }, [isDarkMode]);
+
+  // Verify admin token on startup
+  useEffect(() => {
+    if (adminToken) {
+      fetch('/api/admin/verify', {
+        headers: { 'Authorization': `Bearer ${adminToken}` }
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success && data.isAdmin) {
+            setIsAdmin(true);
+          } else {
+            setIsAdmin(false);
+            setAdminToken('');
+            localStorage.removeItem('news_admin_token');
+          }
+        })
+        .catch(() => {
+          setIsAdmin(false);
+        });
+    }
+  }, [adminToken]);
+
+  const handleAdminLoginSuccess = (token) => {
+    setAdminToken(token);
+    setIsAdmin(true);
+    localStorage.setItem('news_admin_token', token);
+    setAdminPanelOpen(true);
+  };
+
+  const handleAdminLogout = () => {
+    setAdminToken('');
+    setIsAdmin(false);
+    localStorage.removeItem('news_admin_token');
+  };
 
   // Debounce search query
   useEffect(() => {
@@ -121,30 +162,13 @@ export default function App() {
     fetchStats();
   }, [fetchNews]);
 
-  // Background auto-refresh stats and news check every 2 minutes
+  // Background auto-refresh stats every 2 minutes
   useEffect(() => {
     const interval = setInterval(() => {
       fetchStats();
     }, 120000);
     return () => clearInterval(interval);
   }, []);
-
-  // Handle manual refresh
-  const handleRefresh = async () => {
-    try {
-      setRefreshing(true);
-      const res = await fetch('/api/news/refresh', { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
-        await fetchNews(1, false);
-        await fetchStats();
-      }
-    } catch (err) {
-      console.error('Refresh failed:', err);
-    } finally {
-      setRefreshing(false);
-    }
-  };
 
   // Toggle bookmark
   const toggleBookmark = (article) => {
@@ -193,11 +217,11 @@ export default function App() {
       <Header
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
-        onRefresh={handleRefresh}
-        isRefreshing={refreshing}
         isDarkMode={isDarkMode}
         setIsDarkMode={setIsDarkMode}
-        onOpenSources={() => setSourcesModalOpen(true)}
+        isAdmin={isAdmin}
+        onOpenAdminLogin={() => setAdminLoginOpen(true)}
+        onOpenAdminPanel={() => setAdminPanelOpen(true)}
         bookmarkCount={bookmarks.length}
         showBookmarksOnly={showBookmarksOnly}
         setShowBookmarksOnly={setShowBookmarksOnly}
@@ -252,15 +276,18 @@ export default function App() {
             <p className="text-xs text-slate-500 mt-0.5">
               {showBookmarksOnly
                 ? `У вас сохранено статей: ${bookmarks.length}`
-                : 'Свежие материалы из авторитетных изданий'}
+                : 'Свежие материалы из проверенных изданий'}
             </p>
           </div>
 
-          {/* Quick status */}
-          {refreshing && (
-            <div className="flex items-center gap-2 text-xs text-sky-500 font-medium animate-pulse">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Подтягиваем свежие новости...</span>
+          {/* Admin badge indicator if logged in */}
+          {isAdmin && (
+            <div
+              onClick={() => setAdminPanelOpen(true)}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300/40 text-xs font-semibold cursor-pointer hover:bg-emerald-100 transition"
+            >
+              <ShieldCheck className="w-4 h-4 text-emerald-500" />
+              <span>Режим администратора</span>
             </div>
           )}
         </div>
@@ -327,16 +354,8 @@ export default function App() {
                 ? 'Нажмите на иконку закладки на любой новости, чтобы сохранить ее для быстрого доступа.'
                 : debouncedSearch
                 ? `По запросу "${debouncedSearch}" ничего не нашлось. Попробуйте изменить формулировку.`
-                : 'Нажмите кнопку «Обновить», чтобы получить самые свежие статьи из RSS-источников.'}
+                : 'Пока нет новостей в выбранной категории.'}
             </p>
-            {!showBookmarksOnly && (
-              <button
-                onClick={handleRefresh}
-                className="px-6 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold shadow-md shadow-sky-500/20 transition"
-              >
-                Обновить ленту сейчас
-              </button>
-            )}
           </div>
         )}
 
@@ -348,15 +367,26 @@ export default function App() {
           <div className="flex items-center gap-2">
             <Newspaper className="w-4 h-4 text-sky-500" />
             <span className="font-semibold text-slate-700 dark:text-slate-200">ИнфоЛента</span>
-            <span>— агрегатор актуальных новостей в реальном времени</span>
+            <span>— актуальные события в режиме реального времени</span>
           </div>
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => setSourcesModalOpen(true)}
-              className="hover:text-sky-500 transition"
-            >
-              Настройка RSS
-            </button>
+            {isAdmin ? (
+              <button
+                onClick={() => setAdminPanelOpen(true)}
+                className="hover:text-emerald-500 font-medium transition flex items-center gap-1 text-emerald-600 dark:text-emerald-400"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Панель управления</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setAdminLoginOpen(true)}
+                className="hover:text-sky-500 transition flex items-center gap-1"
+              >
+                <Lock className="w-3 h-3" />
+                <span>Вход для редактора</span>
+              </button>
+            )}
             <span>•</span>
             <span>Авто-обновление каждые 10 мин</span>
           </div>
@@ -381,10 +411,18 @@ export default function App() {
         onToggleBookmark={toggleBookmark}
       />
 
-      <SourcesModal
-        isOpen={sourcesModalOpen}
-        onClose={() => setSourcesModalOpen(false)}
-        onSourceUpdated={() => {
+      <AdminLoginModal
+        isOpen={adminLoginOpen}
+        onClose={() => setAdminLoginOpen(false)}
+        onLoginSuccess={handleAdminLoginSuccess}
+      />
+
+      <AdminPanelModal
+        isOpen={adminPanelOpen}
+        onClose={() => setAdminPanelOpen(false)}
+        adminToken={adminToken}
+        onLogout={handleAdminLogout}
+        onRefreshData={() => {
           fetchNews(1, false);
           fetchStats();
         }}

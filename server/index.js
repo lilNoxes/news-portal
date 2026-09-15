@@ -5,6 +5,7 @@ import cron from 'node-cron';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import db from './db.js';
 import { fetchAllNews } from './newsFetcher.js';
@@ -14,6 +15,45 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const clientDistPath = path.join(__dirname, '../client/dist');
+
+// Admin credentials
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+const AUTH_SECRET = process.env.AUTH_SECRET || 'news-portal-auth-secret-key-2026';
+
+function generateToken() {
+  const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
+  const payload = `${expiresAt}`;
+  const sig = crypto.createHmac('sha256', AUTH_SECRET).update(payload).digest('hex');
+  return `${payload}.${sig}`;
+}
+
+function verifyToken(token) {
+  if (!token || typeof token !== 'string') return false;
+  const parts = token.split('.');
+  if (parts.length !== 2) return false;
+  const [expiresAtStr, sig] = parts;
+  const expiresAt = parseInt(expiresAtStr, 10);
+  if (isNaN(expiresAt) || Date.now() > expiresAt) return false;
+  const expectedSig = crypto.createHmac('sha256', AUTH_SECRET).update(expiresAtStr).digest('hex');
+  if (sig.length !== expectedSig.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expectedSig));
+}
+
+function requireAdmin(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ success: false, error: 'Требуется авторизация администратора' });
+  }
+  const token = authHeader.split(' ')[1];
+  try {
+    if (!verifyToken(token)) {
+      return res.status(401).json({ success: false, error: 'Сессия истекла или недействительна' });
+    }
+    next();
+  } catch (err) {
+    return res.status(401).json({ success: false, error: 'Ошибка проверки авторизации' });
+  }
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -25,6 +65,27 @@ app.use(express.static(clientDistPath));
 // Health check endpoint for cloud platforms
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', uptime: process.uptime() });
+});
+
+// Admin Auth Endpoints
+app.post('/api/admin/login', (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password) {
+      return res.status(400).json({ success: false, error: 'Пароль обязателен' });
+    }
+    if (password !== ADMIN_PASSWORD) {
+      return res.status(401).json({ success: false, error: 'Неверный пароль администратора' });
+    }
+    const token = generateToken();
+    res.json({ success: true, token });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/admin/verify', requireAdmin, (req, res) => {
+  res.json({ success: true, isAdmin: true });
 });
 
 // 1. GET /api/news - List articles with pagination, category filter, and search
@@ -110,9 +171,9 @@ app.get('/api/news/:id', (req, res) => {
   }
 });
 
-// 3. POST /api/news/refresh - Trigger manual update
+// 3. POST /api/news/refresh - Trigger manual update (Admin only)
 let isFetching = false;
-app.post('/api/news/refresh', async (req, res) => {
+app.post('/api/news/refresh', requireAdmin, async (req, res) => {
   if (isFetching) {
     return res.json({ success: true, message: 'Обновление уже выполняется...', alreadyRunning: true });
   }
@@ -129,7 +190,7 @@ app.post('/api/news/refresh', async (req, res) => {
   }
 });
 
-// 4. GET /api/sources - Get all sources
+// 4. GET /api/sources - Get all sources (Public read)
 app.get('/api/sources', (req, res) => {
   try {
     const sources = db.prepare(`
@@ -143,8 +204,8 @@ app.get('/api/sources', (req, res) => {
   }
 });
 
-// 5. POST /api/sources - Add a new RSS source
-app.post('/api/sources', (req, res) => {
+// 5. POST /api/sources - Add a new RSS source (Admin only)
+app.post('/api/sources', requireAdmin, (req, res) => {
   try {
     const { name, url, category } = req.body;
     if (!name || !url) {
@@ -162,8 +223,8 @@ app.post('/api/sources', (req, res) => {
   }
 });
 
-// 6. PUT /api/sources/:id/toggle - Toggle source enabled/disabled
-app.put('/api/sources/:id/toggle', (req, res) => {
+// 6. PUT /api/sources/:id/toggle - Toggle source enabled/disabled (Admin only)
+app.put('/api/sources/:id/toggle', requireAdmin, (req, res) => {
   try {
     const source = db.prepare('SELECT enabled FROM sources WHERE id = ?').get(req.params.id);
     if (!source) {
@@ -178,8 +239,8 @@ app.put('/api/sources/:id/toggle', (req, res) => {
   }
 });
 
-// 7. DELETE /api/sources/:id - Delete a source
-app.delete('/api/sources/:id', (req, res) => {
+// 7. DELETE /api/sources/:id - Delete a source (Admin only)
+app.delete('/api/sources/:id', requireAdmin, (req, res) => {
   try {
     db.prepare('DELETE FROM sources WHERE id = ?').run(req.params.id);
     res.json({ success: true });
