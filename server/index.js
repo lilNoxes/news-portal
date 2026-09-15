@@ -2,16 +2,23 @@ import express from 'express';
 import cors from 'cors';
 import cron from 'node-cron';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import db from './db.js';
 import { fetchAllNews } from './newsFetcher.js';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const clientDistPath = path.join(__dirname, '../client/dist');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
+app.use(express.static(clientDistPath));
 
 // 1. GET /api/news - List articles with pagination, category filter, and search
 app.get('/api/news', (req, res) => {
@@ -192,9 +199,14 @@ app.get('/api/stats', (req, res) => {
   }
 });
 
+// Fallback route for SPA frontend
+app.get('*', (req, res) => {
+  res.sendFile(path.join(clientDistPath, 'index.html'));
+});
+
 // Start Express server
-app.listen(PORT, () => {
-  console.log(`🚀 News Server running on http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 News Server running on port ${PORT}`);
 
   // Schedule auto-fetch every 10 minutes
   cron.schedule('*/10 * * * *', async () => {
