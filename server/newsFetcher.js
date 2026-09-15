@@ -12,7 +12,7 @@ const parser = new Parser({
       ['content:encoded', 'contentEncoded']
     ]
   },
-  timeout: 12000,
+  timeout: 6000,
   headers: {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     'Accept': 'application/rss+xml, application/xml, text/xml, */*'

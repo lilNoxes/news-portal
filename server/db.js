@@ -47,6 +47,8 @@ db.exec(`
 
 // Pre-populate default sources if table is empty
 const defaultSources = [
+  { name: 'ТАСС (Главное)', url: 'https://tass.ru/rss/v2.xml', category: 'Главное' },
+  { name: 'Интерфакс', url: 'https://www.interfax.ru/rss.asp', category: 'Главное' },
   { name: 'РБК Главное', url: 'https://rssexport.rbc.ru/rbcnews/news/30/full.rss', category: 'Главное' },
   { name: 'Lenta.ru', url: 'https://lenta.ru/rss/news', category: 'Главное' },
   { name: 'Ведомости (Бизнес)', url: 'https://www.vedomosti.ru/rss/news', category: 'Бизнес' },
