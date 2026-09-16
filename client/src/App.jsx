@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Header from './components/Header';
 import CategoryFilter from './components/CategoryFilter';
 import NewsCard from './components/NewsCard';
+import FeaturedNews from './components/FeaturedNews';
 import NewsModal from './components/NewsModal';
 import AdminLoginModal from './components/AdminLoginModal';
 import AdminPanelModal from './components/AdminPanelModal';
@@ -312,10 +313,24 @@ export default function App() {
             ))}
           </div>
         ) : displayedArticles.length > 0 ? (
-          /* Articles Cards Grid */
+          /* Articles Content */
           <>
+            {/* Spotlight Hero Story for the #1 freshest article */}
+            {!showBookmarksOnly && !debouncedSearch && page === 1 && displayedArticles[0] && (
+              <FeaturedNews
+                article={displayedArticles[0]}
+                isBookmarked={bookmarks.some(b => b.link === displayedArticles[0].link)}
+                onToggleBookmark={toggleBookmark}
+                onOpenModal={setActiveModalArticle}
+              />
+            )}
+
+            {/* Articles Cards Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 my-6">
-              {displayedArticles.map((article) => (
+              {(!showBookmarksOnly && !debouncedSearch && page === 1
+                ? displayedArticles.slice(1)
+                : displayedArticles
+              ).map((article) => (
                 <NewsCard
                   key={article.id || article.link}
                   article={article}

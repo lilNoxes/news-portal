@@ -44,3 +44,10 @@ function pluralize(n, one, two, five) {
   if (rem === 1) return one;
   return five;
 }
+
+export function calculateReadingTime(text) {
+  if (!text) return '1 мин чтения';
+  const words = text.trim().split(/\s+/).length;
+  const minutes = Math.max(1, Math.ceil(words / 150));
+  return `${minutes} ${pluralize(minutes, 'мин', 'мин', 'мин')} чтения`;
+}
