@@ -22,11 +22,11 @@ export default function DigestModal({ isOpen, onClose }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  const loadDigest = async () => {
+  const loadDigest = async (force = false) => {
     try {
       setLoading(true);
       setError('');
-      const res = await fetch('/api/ai/digest');
+      const res = await fetch('/api/ai/digest' + (force ? '?force=true' : ''));
       const data = await res.json();
       if (data.success) {
         setDigest(data.digest);
@@ -86,13 +86,23 @@ export default function DigestModal({ isOpen, onClose }) {
 
           <div className="flex items-center gap-1.5">
             {digest && (
-              <button
-                onClick={handleCopy}
-                title="Скопировать сводку"
-                className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition"
-              >
-                {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Share2 className="w-4 h-4" />}
-              </button>
+              <>
+                <button
+                  onClick={() => loadDigest(true)}
+                  disabled={loading}
+                  title="Сформировать свежую сводку"
+                  className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                </button>
+                <button
+                  onClick={handleCopy}
+                  title="Скопировать сводку"
+                  className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition"
+                >
+                  {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Share2 className="w-4 h-4" />}
+                </button>
+              </>
             )}
 
             <button
@@ -132,7 +142,7 @@ export default function DigestModal({ isOpen, onClose }) {
                 </div>
               </div>
               <button
-                onClick={loadDigest}
+                onClick={() => loadDigest(true)}
                 className="text-xs font-semibold px-4 py-2 rounded-xl bg-amber-200/60 dark:bg-amber-800/50 hover:bg-amber-200 dark:hover:bg-amber-800 text-amber-900 dark:text-amber-100 transition"
               >
                 Повторить попытку
@@ -153,12 +163,35 @@ export default function DigestModal({ isOpen, onClose }) {
               )}
 
               {/* Digest Markdown Content */}
-              <div className="prose dark:prose-invert max-w-none text-slate-700 dark:text-slate-300 text-sm sm:text-base leading-relaxed space-y-4">
-                {digest.split('\n\n').map((paragraph, index) => (
-                  <p key={index} className="leading-relaxed">
-                    {paragraph}
-                  </p>
-                ))}
+              <div className="space-y-4">
+                {digest.split('\n\n').map((paragraph, index) => {
+                  const trimmed = paragraph.trim();
+                  if (!trimmed) return null;
+                  const isTopic = trimmed.startsWith('📌') || trimmed.startsWith('**') || trimmed.startsWith('#');
+                  const parts = trimmed.split(/(\*\*[^*]+\*\*)/g);
+
+                  return (
+                    <div
+                      key={index}
+                      className={isTopic 
+                        ? "p-4 sm:p-5 rounded-2xl bg-slate-50/90 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-800 shadow-sm" 
+                        : "text-slate-700 dark:text-slate-300 text-sm sm:text-base leading-relaxed"}
+                    >
+                      <p className="leading-relaxed text-sm sm:text-base text-slate-700 dark:text-slate-200">
+                        {parts.map((part, i) => {
+                          if (part.startsWith('**') && part.endsWith('**')) {
+                            return (
+                              <strong key={i} className="font-bold text-slate-900 dark:text-white">
+                                {part.slice(2, -2)}
+                              </strong>
+                            );
+                          }
+                          return part;
+                        })}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : null}

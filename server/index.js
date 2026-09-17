@@ -266,7 +266,8 @@ app.post('/api/ai/summarize/:id', async (req, res) => {
 // Get or generate daily AI news digest
 app.get('/api/ai/digest', async (req, res) => {
   try {
-    const result = await getDailyDigest();
+    const force = req.query.force === 'true';
+    const result = await getDailyDigest(force);
     res.json(result);
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

@@ -107,7 +107,10 @@ ${sourceText}`;
 
     const response = await generateContentWithFallback(ai, prompt, {
       temperature: 0.2,
-      maxOutputTokens: 500
+      maxOutputTokens: 1000,
+      thinkingConfig: {
+        thinkingBudget: 0
+      }
     });
 
     const summary = response.text ? response.text.trim() : '';
@@ -141,36 +144,38 @@ ${sourceText}`;
 /**
  * Generate or get cached daily news digest
  */
-export async function getDailyDigest() {
+export async function getDailyDigest(force = false) {
   const currentPeriod = new Date().toISOString().substring(0, 13); // Cache key by hour: YYYY-MM-DDTHH
 
-  // 1. Check cache in database (valid for current hour)
-  const cached = db.prepare('SELECT * FROM ai_digests WHERE period = ? ORDER BY id DESC LIMIT 1').get(currentPeriod);
-  if (cached) {
-    return {
-      success: true,
-      digest: cached.summary,
-      headline: cached.headline,
-      cached: true,
-      created_at: cached.created_at
-    };
-  }
+  // 1. Check cache in database (only if not forced and summary is complete > 150 chars)
+  if (!force) {
+    const cached = db.prepare('SELECT * FROM ai_digests WHERE period = ? ORDER BY id DESC LIMIT 1').get(currentPeriod);
+    if (cached && cached.summary && cached.summary.length > 150) {
+      return {
+        success: true,
+        digest: cached.summary,
+        headline: cached.headline,
+        cached: true,
+        created_at: cached.created_at
+      };
+    }
 
-  // Check if any digest was generated in the last 2 hours
-  const recent = db.prepare(`
-    SELECT * FROM ai_digests 
-    WHERE created_at >= datetime('now', '-2 hours') 
-    ORDER BY id DESC LIMIT 1
-  `).get();
+    // Check if any valid digest was generated in the last 2 hours
+    const recent = db.prepare(`
+      SELECT * FROM ai_digests 
+      WHERE created_at >= datetime('now', '-2 hours') 
+      ORDER BY id DESC LIMIT 1
+    `).get();
 
-  if (recent) {
-    return {
-      success: true,
-      digest: recent.summary,
-      headline: recent.headline,
-      cached: true,
-      created_at: recent.created_at
-    };
+    if (recent && recent.summary && recent.summary.length > 150) {
+      return {
+        success: true,
+        digest: recent.summary,
+        headline: recent.headline,
+        cached: true,
+        created_at: recent.created_at
+      };
+    }
   }
 
   // 2. Check API Key
@@ -206,42 +211,36 @@ export async function getDailyDigest() {
       .map((a, i) => `${i + 1}. [${a.category}] ${a.title} (${a.source}): ${a.description}`)
       .join('\n');
 
-    const prompt = `Ты — главный редактор новостного портала «ИнфоЛента».
-На основе списка свежих новостей за последние 24 часа подготовь краткий структурированный дайджест «Картина дня».
+    const prompt = `Ты — ведущий аналитик и главный редактор новостного портала «ИнфоЛента».
+На основе списка свежих новостей подготовь структурированный информативный дайджест «Картина дня» на русском языке.
 
 Формат ответа:
-Сначала напиши одну строку:
+Строка 1:
 HEADLINE: [Один яркий объединяющий заголовок дня]
 
-Затем краткий обзор по 3-4 ключевым темам дня в формате:
-📌 **[Тема 1: Название тренда/события]**
-Краткая суть того, что произошло и почему это важно (2-3 предложения).
-
-📌 **[Тема 2: Название тренда/события]**
-Краткая суть (2-3 предложения).
-
-📌 **[Тема 3: Название тренда/события]**
-Краткая суть (2-3 предложения).
+Далее 3-4 ключевые темы дня:
+📌 **[Тема: Название тренда/события]**
+Краткий и содержательный анализ (2-3 емких предложения, факты, цифры, последствия).
 
 Список событий:
 ${newsContext}`;
 
     const response = await generateContentWithFallback(ai, prompt, {
       temperature: 0.3,
-      maxOutputTokens: 1000
+      maxOutputTokens: 2500,
+      thinkingConfig: {
+        thinkingBudget: 0
+      }
     });
 
     const rawText = response.text ? response.text.trim() : '';
     let headline = 'Главные события дня';
     let summary = rawText;
 
-    if (rawText.includes('HEADLINE:')) {
-      const parts = rawText.split('HEADLINE:');
-      const headlineLine = parts[1].split('\n')[0].trim();
-      if (headlineLine) {
-        headline = headlineLine;
-      }
-      summary = parts[1].substring(headlineLine.length).trim();
+    const headlineMatch = rawText.match(/HEADLINE:\s*([^\n\r]+)/i);
+    if (headlineMatch) {
+      headline = headlineMatch[1].trim().replace(/^[*#_\s]+|[*#_\s]+$/g, '');
+      summary = rawText.replace(/HEADLINE:\s*[^\n\r]+(\r?\n)*/i, '').trim();
     }
 
     // Save to database
