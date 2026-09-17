@@ -5,10 +5,11 @@ import NewsCard from './components/NewsCard';
 import FeaturedNews from './components/FeaturedNews';
 import NewsModal from './components/NewsModal';
 import DigestModal from './components/DigestModal';
+import AboutModal from './components/AboutModal';
 import AdminLoginModal from './components/AdminLoginModal';
 import AdminPanelModal from './components/AdminPanelModal';
 import StatsBanner from './components/StatsBanner';
-import { Newspaper, Loader2, Sparkles, Bookmark, ArrowUp, Lock, ShieldCheck } from 'lucide-react';
+import { Newspaper, Loader2, Sparkles, Bookmark, ArrowUp, Lock, ShieldCheck, Info, Rss } from 'lucide-react';
 
 export default function App() {
   // Theme state
@@ -52,6 +53,7 @@ export default function App() {
   // Modals
   const [activeModalArticle, setActiveModalArticle] = useState(null);
   const [digestOpen, setDigestOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
 
   // Scroll to top button state
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -381,13 +383,30 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 py-8 mt-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
           <div className="flex items-center gap-2">
             <Newspaper className="w-4 h-4 text-sky-500" />
             <span className="font-semibold text-slate-700 dark:text-slate-200">ИнфоЛента</span>
             <span>— актуальные события в режиме реального времени</span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
+            <button
+              onClick={() => setAboutOpen(true)}
+              className="hover:text-sky-500 font-medium transition cursor-pointer flex items-center gap-1 text-slate-700 dark:text-slate-300"
+            >
+              <Info className="w-3.5 h-3.5 text-sky-500" />
+              <span>О проекте и источниках</span>
+            </button>
+            <span>•</span>
+            <a href="/sitemap.xml" target="_blank" rel="noopener noreferrer" className="hover:text-sky-500 transition">
+              Карта сайта
+            </a>
+            <span>•</span>
+            <a href="/rss.xml" target="_blank" rel="noopener noreferrer" className="hover:text-amber-500 transition flex items-center gap-1">
+              <Rss className="w-3.5 h-3.5 text-amber-500" />
+              <span>RSS</span>
+            </a>
+            <span>•</span>
             {isAdmin ? (
               <button
                 onClick={() => setAdminPanelOpen(true)}
@@ -405,8 +424,8 @@ export default function App() {
                 <span>Вход для редактора</span>
               </button>
             )}
-            <span>•</span>
-            <span>Авто-обновление каждые 10 мин</span>
+            <span className="hidden sm:inline">•</span>
+            <span className="hidden sm:inline">Авто-обновление каждые 10 мин</span>
           </div>
         </div>
       </footer>
@@ -432,6 +451,11 @@ export default function App() {
       <DigestModal
         isOpen={digestOpen}
         onClose={() => setDigestOpen(false)}
+      />
+
+      <AboutModal
+        isOpen={aboutOpen}
+        onClose={() => setAboutOpen(false)}
       />
 
       <AdminLoginModal

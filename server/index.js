@@ -127,6 +127,18 @@ const apiLimiter = rateLimit({
 });
 
 app.disable('x-powered-by');
+
+// Security Headers Middleware (HSTS, nosniff, frame-options, referrer-policy)
+app.use((req, res, next) => {
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  next();
+});
+
 app.use(compression());
 app.use(cors());
 app.use(express.json());
@@ -464,6 +476,63 @@ app.get('/sitemap.xml', (req, res) => {
   } catch (err) {
     console.error('Error generating sitemap.xml:', err);
     res.status(500).type('text/plain').send('Error generating sitemap');
+  }
+});
+
+// 12. RSS 2.0 Feed for external readers and aggregators
+app.get('/rss.xml', (req, res) => {
+  try {
+    const baseUrl = 'https://newsjqke.infrlo.com';
+    const articles = db.prepare(`
+      SELECT id, title, description, link, pub_date, pub_timestamp, category, source
+      FROM articles
+      ORDER BY pub_timestamp DESC
+      LIMIT 100
+    `).all();
+
+    const nowRss = new Date().toUTCString();
+
+    let rss = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+    rss += `<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">\n`;
+    rss += `  <channel>\n`;
+    rss += `    <title>ИнфоЛента — Актуальные новости</title>\n`;
+    rss += `    <link>${baseUrl}/</link>\n`;
+    rss += `    <description>Оперативный новостной агрегатор с ИИ-выжимками и дайджестами событий</description>\n`;
+    rss += `    <language>ru</language>\n`;
+    rss += `    <lastBuildDate>${nowRss}</lastBuildDate>\n`;
+    rss += `    <atom:link href="${baseUrl}/rss.xml" rel="self" type="application/rss+xml" />\n`;
+
+    for (const art of articles) {
+      const artDate = art.pub_date || (art.pub_timestamp ? new Date(art.pub_timestamp).toUTCString() : nowRss);
+      const cleanTitle = (art.title || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      const cleanDesc = (art.description || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+      rss += `    <item>\n`;
+      rss += `      <title>${cleanTitle}</title>\n`;
+      rss += `      <link>${art.link || `${baseUrl}/?article=${art.id}`}</link>\n`;
+      rss += `      <guid isPermaLink="false">infolenta-art-${art.id}</guid>\n`;
+      rss += `      <pubDate>${artDate}</pubDate>\n`;
+      rss += `      <category>${art.category || 'Главное'}</category>\n`;
+      rss += `      <source url="${baseUrl}/">${art.source || 'ИнфоЛента'}</source>\n`;
+      rss += `      <description>${cleanDesc}</description>\n`;
+      rss += `    </item>\n`;
+    }
+
+    rss += `  </channel>\n`;
+    rss += `</rss>`;
+
+    res.header('Content-Type', 'application/xml; charset=utf-8');
+    res.header('Cache-Control', 'public, max-age=600'); // Cache for 10 min
+    res.send(rss);
+  } catch (err) {
+    console.error('Error generating rss.xml:', err);
+    res.status(500).type('text/plain').send('Error generating RSS feed');
   }
 });
 
