@@ -1,14 +1,17 @@
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
+import compression from 'compression';
 import cron from 'node-cron';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
-import db from './db.js';
+import rateLimit from 'express-rate-limit';
+import db, { cleanupOldArticles } from './db.js';
 import { fetchAllNews } from './newsFetcher.js';
+import { isAiAvailable, summarizeArticle, getDailyDigest } from './geminiService.js';
 
 dotenv.config();
 
@@ -22,7 +25,8 @@ const AUTH_SECRET = process.env.AUTH_SECRET || 'news-portal-auth-secret-key-2026
 
 function generateToken() {
   const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
-  const payload = `${expiresAt}`;
+  const nonce = crypto.randomBytes(16).toString('hex');
+  const payload = `${expiresAt}.${nonce}`;
   const sig = crypto.createHmac('sha256', AUTH_SECRET).update(payload).digest('hex');
   return `${payload}.${sig}`;
 }
@@ -30,11 +34,12 @@ function generateToken() {
 function verifyToken(token) {
   if (!token || typeof token !== 'string') return false;
   const parts = token.split('.');
-  if (parts.length !== 2) return false;
-  const [expiresAtStr, sig] = parts;
+  if (parts.length !== 3) return false;
+  const [expiresAtStr, nonce, sig] = parts;
   const expiresAt = parseInt(expiresAtStr, 10);
   if (isNaN(expiresAt) || Date.now() > expiresAt) return false;
-  const expectedSig = crypto.createHmac('sha256', AUTH_SECRET).update(expiresAtStr).digest('hex');
+  const payload = `${expiresAtStr}.${nonce}`;
+  const expectedSig = crypto.createHmac('sha256', AUTH_SECRET).update(payload).digest('hex');
   if (sig.length !== expectedSig.length) return false;
   return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expectedSig));
 }
@@ -55,11 +60,76 @@ function requireAdmin(req, res, next) {
   }
 }
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+/**
+ * Sanitize and format query for SQLite FTS5 prefix matching
+ */
+function formatFtsQuery(query) {
+  if (!query) return null;
+  // Match words with Unicode support (Cyrillic + Latin + numbers)
+  const words = query.match(/[\p{L}\p{N}]+/gu);
+  if (!words || words.length === 0) return null;
+  // Use prefix matching for each word: "слово"* AND "след"*
+  return words.map(w => `"${w}"*`).join(' AND ');
+}
 
+/**
+ * Validate RSS URL against SSRF (Server-Side Request Forgery)
+ */
+function validateRssUrl(inputUrl) {
+  try {
+    const parsed = new URL(inputUrl);
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return { valid: false, error: 'Разрешены только протоколы http:// и https://' };
+    }
+
+    const hostname = parsed.hostname.toLowerCase();
+    if (hostname === 'localhost' || hostname.endsWith('.local') || hostname.endsWith('.internal')) {
+      return { valid: false, error: 'Доступ к локальным адресам запрещен' };
+    }
+
+    // Block private/internal IPv4 and IPv6
+    if (
+      hostname === '0.0.0.0' ||
+      hostname === '127.0.0.1' ||
+      hostname === '::1' ||
+      hostname.startsWith('127.') ||
+      hostname.startsWith('10.') ||
+      hostname.startsWith('192.168.') ||
+      hostname.startsWith('169.254.') ||
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname)
+    ) {
+      return { valid: false, error: 'Доступ к приватным и внутренним адресам сети запрещен' };
+    }
+
+    return { valid: true, sanitizedUrl: parsed.href };
+  } catch {
+    return { valid: false, error: 'Некорректный формат URL' };
+  }
+}
+
+const app = express();
+
+// Rate limiters
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 минут
+  max: 5, // не более 5 попыток на IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Слишком много попыток входа. Пожалуйста, подождите 15 минут.' }
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 минута
+  max: 120, // не более 120 запросов в минуту
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Слишком много запросов. Пожалуйста, повторите позже.' }
+});
+
+app.use(compression());
 app.use(cors());
 app.use(express.json());
+app.use('/api/', apiLimiter);
 app.use(express.static(clientDistPath));
 
 // Health check endpoint for cloud platforms
@@ -68,7 +138,7 @@ app.get('/health', (req, res) => {
 });
 
 // Admin Auth Endpoints
-app.post('/api/admin/login', (req, res) => {
+app.post('/api/admin/login', loginLimiter, (req, res) => {
   try {
     const { password } = req.body;
     if (!password) {
@@ -113,8 +183,14 @@ app.get('/api/news', (req, res) => {
     }
 
     if (q) {
-      whereClauses.push('(title LIKE @search OR description LIKE @search)');
-      params.search = `%${q}%`;
+      const ftsQuery = formatFtsQuery(q);
+      if (ftsQuery) {
+        whereClauses.push('articles.id IN (SELECT rowid FROM articles_fts WHERE articles_fts MATCH @ftsQuery)');
+        params.ftsQuery = ftsQuery;
+      } else {
+        whereClauses.push('(title LIKE @search OR description LIKE @search)');
+        params.search = `%${q}%`;
+      }
     }
 
     const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
@@ -126,7 +202,7 @@ app.get('/api/news', (req, res) => {
 
     // Articles query
     const articles = db.prepare(`
-      SELECT id, guid, title, link, description, pub_date, pub_timestamp, source, category, image_url, created_at
+      SELECT id, guid, title, link, description, content, ai_summary, pub_date, pub_timestamp, source, category, image_url, created_at
       FROM articles
       ${whereSql}
       ORDER BY pub_timestamp DESC
@@ -171,22 +247,40 @@ app.get('/api/news/:id', (req, res) => {
   }
 });
 
-// 3. POST /api/news/refresh - Trigger manual update (Admin only)
-let isFetching = false;
-app.post('/api/news/refresh', requireAdmin, async (req, res) => {
-  if (isFetching) {
-    return res.json({ success: true, message: 'Обновление уже выполняется...', alreadyRunning: true });
-  }
+// AI Feature Endpoints
+// Check AI status
+app.get('/api/ai/status', (req, res) => {
+  res.json({ success: true, available: isAiAvailable() });
+});
 
+// Generate or get cached AI TL;DR summary for an article
+app.post('/api/ai/summarize/:id', async (req, res) => {
   try {
-    isFetching = true;
+    const result = await summarizeArticle(req.params.id);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get or generate daily AI news digest
+app.get('/api/ai/digest', async (req, res) => {
+  try {
+    const result = await getDailyDigest();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 3. POST /api/news/refresh - Trigger manual update (Admin only)
+app.post('/api/news/refresh', requireAdmin, async (req, res) => {
+  try {
     const result = await fetchAllNews();
-    res.json({ success: true, totalAdded: result.totalAdded });
+    res.json({ success: true, totalAdded: result.totalAdded, alreadyRunning: result.alreadyRunning });
   } catch (err) {
     console.error('Error in manual refresh:', err);
     res.status(500).json({ success: false, error: err.message });
-  } finally {
-    isFetching = false;
   }
 });
 
@@ -212,10 +306,15 @@ app.post('/api/sources', requireAdmin, (req, res) => {
       return res.status(400).json({ success: false, error: 'Имя и URL обязательны' });
     }
 
+    const validation = validateRssUrl(url.trim());
+    if (!validation.valid) {
+      return res.status(400).json({ success: false, error: validation.error });
+    }
+
     const info = db.prepare(`
       INSERT INTO sources (name, url, category, enabled)
       VALUES (?, ?, ?, 1)
-    `).run(name.trim(), url.trim(), (category || 'Главное').trim());
+    `).run(name.trim(), validation.sanitizedUrl, (category || 'Главное').trim());
 
     res.json({ success: true, id: info.lastInsertRowid });
   } catch (err) {
@@ -295,26 +394,29 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection:', reason);
 });
 
-// Start HTTP servers on all common cloud ports (dual-stack IPv4 + IPv6)
+// Start HTTP servers on all common cloud & dev ports (dual-stack IPv4)
 const candidatePorts = [
   process.env.PORT,
   3000,
+  3001,
   8080,
-  5000,
-  80
+  5000
 ].filter(Boolean).map(p => parseInt(p, 10));
 
 const portsToListen = [...new Set(candidatePorts)];
+const activeServers = [];
 
 for (const port of portsToListen) {
   try {
     const s = http.createServer(app);
-    s.listen(port, () => {
-      console.log(`🚀 News Server listening on port ${port} (all interfaces)`);
-    });
     s.on('error', (err) => {
+      // If port is already bound or unavailable, safely ignore
       console.log(`Port ${port} notice: ${err.message}`);
     });
+    s.listen(port, '0.0.0.0', () => {
+      console.log(`🚀 News Server listening on http://0.0.0.0:${port} (env.PORT: ${process.env.PORT || 'undefined'})`);
+    });
+    activeServers.push(s);
   } catch (err) {
     console.log(`Port ${port} error: ${err.message}`);
   }
@@ -330,7 +432,17 @@ cron.schedule('*/10 * * * *', async () => {
   }
 });
 
-// Defer initial fetch so the server responds to gateway health checks immediately!
+// Schedule daily cleanup of old news (older than 14 days) every night at 03:00
+cron.schedule('0 3 * * *', () => {
+  console.log('⏰ Scheduled cron: running daily retention cleanup...');
+  try {
+    cleanupOldArticles(14);
+  } catch (err) {
+    console.error('Scheduled cleanup error:', err);
+  }
+});
+
+// Defer initial fetch and initial cleanup so server answers health checks immediately
 setTimeout(() => {
   try {
     const count = db.prepare('SELECT COUNT(*) as count FROM articles').get().count;
@@ -341,4 +453,50 @@ setTimeout(() => {
   } catch (err) {
     console.error('Error starting initial fetch:', err);
   }
-}, 1000);
+
+  // Also run retention cleanup in the background
+  try {
+    cleanupOldArticles(14);
+  } catch (err) {
+    console.error('Error during initial cleanup:', err);
+  }
+}, 2000);
+
+// Graceful Shutdown for cloud containers and process signals
+function gracefulShutdown(signal) {
+  console.log(`\n🛑 Received ${signal}. Starting graceful shutdown...`);
+  let closed = 0;
+  const finish = () => {
+    try {
+      db.pragma('wal_checkpoint(TRUNCATE)');
+      db.close();
+      console.log('✓ SQLite database checkpointed and closed cleanly.');
+    } catch (err) {
+      console.error('Error closing database during shutdown:', err);
+    }
+    process.exit(0);
+  };
+
+  if (activeServers.length === 0) {
+    finish();
+  } else {
+    for (const s of activeServers) {
+      s.close(() => {
+        closed++;
+        if (closed >= activeServers.length) {
+          console.log('✓ All HTTP servers closed.');
+          finish();
+        }
+      });
+    }
+  }
+
+  // Force kill if graceful close hangs
+  setTimeout(() => {
+    console.error('⚠️ Forcing process exit after timeout.');
+    process.exit(1);
+  }, 10000).unref();
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));

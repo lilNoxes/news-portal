@@ -28,3 +28,7 @@ yarn-error.log*
 # OS metadata
 .DS_Store
 Thumbs.db
+
+# Private AI instruction files
+AGENTS.md
+GEMINI.md

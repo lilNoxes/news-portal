@@ -4,6 +4,7 @@ import CategoryFilter from './components/CategoryFilter';
 import NewsCard from './components/NewsCard';
 import FeaturedNews from './components/FeaturedNews';
 import NewsModal from './components/NewsModal';
+import DigestModal from './components/DigestModal';
 import AdminLoginModal from './components/AdminLoginModal';
 import AdminPanelModal from './components/AdminPanelModal';
 import StatsBanner from './components/StatsBanner';
@@ -50,6 +51,7 @@ export default function App() {
 
   // Modals
   const [activeModalArticle, setActiveModalArticle] = useState(null);
+  const [digestOpen, setDigestOpen] = useState(false);
 
   // Scroll to top button state
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -226,6 +228,7 @@ export default function App() {
         bookmarkCount={bookmarks.length}
         showBookmarksOnly={showBookmarksOnly}
         setShowBookmarksOnly={setShowBookmarksOnly}
+        onOpenDigest={() => setDigestOpen(true)}
       />
 
       {/* Main Container */}
@@ -424,6 +427,11 @@ export default function App() {
         onClose={() => setActiveModalArticle(null)}
         isBookmarked={activeModalArticle ? bookmarks.some(b => b.link === activeModalArticle.link) : false}
         onToggleBookmark={toggleBookmark}
+      />
+
+      <DigestModal
+        isOpen={digestOpen}
+        onClose={() => setDigestOpen(false)}
       />
 
       <AdminLoginModal

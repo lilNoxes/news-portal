@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Newspaper, Search, Moon, Sun, X, Bookmark, ShieldCheck, Lock, Command } from 'lucide-react';
+import { Newspaper, Search, Moon, Sun, X, Bookmark, ShieldCheck, Lock, Command, Sparkles } from 'lucide-react';
 
 export default function Header({
   searchQuery,
@@ -11,7 +11,8 @@ export default function Header({
   onOpenAdminPanel,
   bookmarkCount,
   showBookmarksOnly,
-  setShowBookmarksOnly
+  setShowBookmarksOnly,
+  onOpenDigest
 }) {
   const searchInputRef = useRef(null);
 
@@ -88,6 +89,16 @@ export default function Header({
           {/* Action Buttons */}
           <div className="flex items-center gap-2">
             
+            {/* Gemini AI Daily Digest Button */}
+            <button
+              onClick={onOpenDigest}
+              title="Сформировать AI-дайджест дня (Gemini)"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-sky-500 via-indigo-600 to-purple-600 hover:from-sky-600 hover:to-purple-700 text-white text-xs font-bold shadow-md shadow-indigo-500/25 transition active:scale-95 cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5 animate-pulse" />
+              <span className="hidden sm:inline">AI Дайджест</span>
+            </button>
+
             {/* Bookmarks Toggle */}
             <button
               onClick={() => setShowBookmarksOnly(!showBookmarksOnly)}
