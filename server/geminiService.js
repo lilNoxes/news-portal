@@ -5,7 +5,15 @@ import db from './db.js';
 dotenv.config();
 
 const API_KEY = process.env.GEMINI_API_KEY || '';
-const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+
+// Ordered list of Flash models with automatic fallback
+const CANDIDATE_MODELS = [
+  process.env.GEMINI_MODEL,
+  'gemini-3.6-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-flash-latest'
+].filter(Boolean);
 
 let aiClient = null;
 
@@ -15,6 +23,29 @@ function getAiClient() {
     aiClient = new GoogleGenAI({ apiKey: API_KEY });
   }
   return aiClient;
+}
+
+/**
+ * Execute generateContent with automatic fallback across supported model candidates
+ */
+async function generateContentWithFallback(ai, prompt, config) {
+  let lastError = null;
+  for (const model of CANDIDATE_MODELS) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+        config
+      });
+      if (response && response.text) {
+        return response;
+      }
+    } catch (err) {
+      console.warn(`[Gemini AI] Model "${model}" failed: ${err.message}. Trying next candidate...`);
+      lastError = err;
+    }
+  }
+  throw lastError || new Error('Все модели-кандидаты Gemini недоступны');
 }
 
 /**
@@ -74,13 +105,9 @@ export async function summarizeArticle(articleId) {
 Текст новости:
 ${sourceText}`;
 
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: prompt,
-      config: {
-        temperature: 0.2,
-        maxOutputTokens: 500
-      }
+    const response = await generateContentWithFallback(ai, prompt, {
+      temperature: 0.2,
+      maxOutputTokens: 500
     });
 
     const summary = response.text ? response.text.trim() : '';
@@ -98,9 +125,14 @@ ${sourceText}`;
     }
   } catch (err) {
     console.error('Error generating AI summary:', err.message);
+    let userMsg = err.message;
+    try {
+      const parsed = JSON.parse(err.message);
+      if (parsed?.error?.message) userMsg = parsed.error.message;
+    } catch {}
     return {
       success: false,
-      error: 'Ошибка генерации выжимки: ' + err.message,
+      error: 'Ошибка генерации выжимки: ' + userMsg,
       summary: null
     };
   }
@@ -194,13 +226,9 @@ HEADLINE: [Один яркий объединяющий заголовок дн�
 Список событий:
 ${newsContext}`;
 
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: prompt,
-      config: {
-        temperature: 0.3,
-        maxOutputTokens: 1000
-      }
+    const response = await generateContentWithFallback(ai, prompt, {
+      temperature: 0.3,
+      maxOutputTokens: 1000
     });
 
     const rawText = response.text ? response.text.trim() : '';
@@ -231,9 +259,14 @@ ${newsContext}`;
     };
   } catch (err) {
     console.error('Error generating daily digest:', err.message);
+    let userMsg = err.message;
+    try {
+      const parsed = JSON.parse(err.message);
+      if (parsed?.error?.message) userMsg = parsed.error.message;
+    } catch {}
     return {
       success: false,
-      error: 'Ошибка генерации дайджеста: ' + err.message
+      error: 'Ошибка генерации дайджеста: ' + userMsg
     };
   }
 }
