@@ -35,9 +35,9 @@ export default function Header({
   }, []);
 
   return (
-    <header className="sticky top-0 z-30 bg-white/75 dark:bg-slate-950/75 backdrop-blur-xl border-b border-slate-200/70 dark:border-slate-800/70 transition-colors duration-200">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 gap-4">
+    <header className="sticky top-0 z-30 bg-white/75 dark:bg-slate-950/75 backdrop-blur-xl border-b border-slate-200/70 dark:border-slate-800/70 transition-colors duration-200 w-full max-w-full overflow-x-hidden">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16 gap-2 sm:gap-4">
           
           {/* Logo & Live Status */}
           <div className="flex items-center gap-3 shrink-0">

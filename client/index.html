@@ -1,15 +1,77 @@
 <!doctype html>
-<html lang="ru">
+<html lang="ru" class="overflow-x-hidden">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Лента Новостей | Актуальные события в реальном времени</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+    
+    <!-- Primary Meta Tags -->
+    <title>ИнфоЛента — Актуальные новости в реальном времени и ИИ-дайджест</title>
+    <meta name="title" content="ИнфоЛента — Актуальные новости в реальном времени и ИИ-дайджест" />
+    <meta name="description" content="ИнфоЛента — независимый новостной агрегатор с автоматическим обновлением каждые 10 минут, умной фильтрацией и аналитическими выжимками ключевых тем от Gemini AI." />
+    <meta name="keywords" content="новости, лента новостей, агрегатор новостей, дайджест новостей, технологии, искусственный интеллект, бизнес, наука, ИнфоЛента" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <link rel="canonical" href="https://newsjqke.infrlo.com/" />
+    <meta name="theme-color" content="#0284c7" />
+
+    <!-- Open Graph / Facebook / Telegram / VK -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="ИнфоЛента" />
+    <meta property="og:locale" content="ru_RU" />
+    <meta property="og:url" content="https://newsjqke.infrlo.com/" />
+    <meta property="og:title" content="ИнфоЛента — Актуальные новости в реальном времени и ИИ-дайджест" />
+    <meta property="og:description" content="ИнфоЛента — независимый новостной агрегатор с автоматическим обновлением каждые 10 минут, умной фильтрацией и аналитическими выжимками ключевых тем от Gemini AI." />
+    <meta property="og:image" content="https://newsjqke.infrlo.com/vite.svg" />
+
+    <!-- Twitter Cards -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="ИнфоЛента — Актуальные новости в реальном времени и ИИ-дайджест" />
+    <meta name="twitter:description" content="Оперативный новостной агрегатор с выжимками главных тем от Gemini AI и обновлением в реальном времени." />
+    <meta name="twitter:image" content="https://newsjqke.infrlo.com/vite.svg" />
+
+    <!-- Performance Hints -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Schema.org JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "@id": "https://newsjqke.infrlo.com/#website",
+          "url": "https://newsjqke.infrlo.com/",
+          "name": "ИнфоЛента",
+          "description": "Оперативный новостной агрегатор с ИИ-дайджестом событий",
+          "inLanguage": "ru-RU",
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": {
+              "@type": "EntryPoint",
+              "urlTemplate": "https://newsjqke.infrlo.com/?q={search_term_string}"
+            },
+            "query-input": "required name=search_term_string"
+          }
+        },
+        {
+          "@type": "NewsMediaOrganization",
+          "@id": "https://newsjqke.infrlo.com/#organization",
+          "name": "ИнфоЛента",
+          "url": "https://newsjqke.infrlo.com/",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://newsjqke.infrlo.com/vite.svg"
+          },
+          "description": "Независимый новостной агрегатор ключевых событий с аналитическими выжимками от искусственного интеллекта",
+          "publishingPrinciples": "https://newsjqke.infrlo.com/"
+        }
+      ]
+    }
+    </script>
   </head>
-  <body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen font-['Inter',sans-serif] transition-colors duration-200">
+  <body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen font-['Inter',sans-serif] transition-colors duration-200 overflow-x-hidden">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

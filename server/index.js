@@ -126,6 +126,7 @@ const apiLimiter = rateLimit({
   message: { success: false, error: 'Слишком много запросов. Пожалуйста, повторите позже.' }
 });
 
+app.disable('x-powered-by');
 app.use(compression());
 app.use(cors());
 app.use(express.json());
@@ -367,8 +368,112 @@ app.get('/api/stats', (req, res) => {
   }
 });
 
-// Fallback route for SPA frontend
+// 9. SEO & Bot Endpoints: robots.txt
+app.get('/robots.txt', (req, res) => {
+  const robotsDistPath = path.join(clientDistPath, 'robots.txt');
+  const robotsPublicPath = path.join(__dirname, '../client/public/robots.txt');
+  if (fs.existsSync(robotsDistPath)) {
+    return res.type('text/plain').sendFile(robotsDistPath);
+  } else if (fs.existsSync(robotsPublicPath)) {
+    return res.type('text/plain').sendFile(robotsPublicPath);
+  }
+  res.type('text/plain').send("User-agent: *\nAllow: /\nDisallow: /api/admin/\nSitemap: https://newsjqke.infrlo.com/sitemap.xml\n");
+});
+
+// 10. SEO & Bot Endpoints: llms.txt (Perplexity, ChatGPT Search, Claude)
+app.get('/llms.txt', (req, res) => {
+  const llmsDistPath = path.join(clientDistPath, 'llms.txt');
+  const llmsPublicPath = path.join(__dirname, '../client/public/llms.txt');
+  if (fs.existsSync(llmsDistPath)) {
+    return res.type('text/plain').sendFile(llmsDistPath);
+  } else if (fs.existsSync(llmsPublicPath)) {
+    return res.type('text/plain').sendFile(llmsPublicPath);
+  }
+  res.type('text/plain').send("# ИнфоЛента (InfoLenta) — AI News Aggregator\nhttps://newsjqke.infrlo.com/\n");
+});
+
+// 11. Dynamic XML Sitemap with Google News extension
+app.get('/sitemap.xml', (req, res) => {
+  try {
+    const baseUrl = 'https://newsjqke.infrlo.com';
+    const categories = ['Главное', 'Технологии', 'Бизнес', 'Наука'];
+    
+    // Fetch latest 300 articles from SQLite
+    const articles = db.prepare(`
+      SELECT id, title, link, pub_timestamp, category
+      FROM articles
+      ORDER BY pub_timestamp DESC
+      LIMIT 300
+    `).all();
+
+    const nowIso = new Date().toISOString().split('T')[0];
+
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+    xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"\n`;
+    xml += `        xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">\n`;
+
+    // Homepage
+    xml += `  <url>\n`;
+    xml += `    <loc>${baseUrl}/</loc>\n`;
+    xml += `    <lastmod>${nowIso}</lastmod>\n`;
+    xml += `    <changefreq>always</changefreq>\n`;
+    xml += `    <priority>1.0</priority>\n`;
+    xml += `  </url>\n`;
+
+    // Category pages
+    for (const cat of categories) {
+      xml += `  <url>\n`;
+      xml += `    <loc>${baseUrl}/?category=${encodeURIComponent(cat)}</loc>\n`;
+      xml += `    <lastmod>${nowIso}</lastmod>\n`;
+      xml += `    <changefreq>hourly</changefreq>\n`;
+      xml += `    <priority>0.8</priority>\n`;
+      xml += `  </url>\n`;
+    }
+
+    // Article entries
+    for (const art of articles) {
+      const artDate = art.pub_timestamp ? new Date(art.pub_timestamp).toISOString().split('T')[0] : nowIso;
+      const escapedTitle = (art.title || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+
+      xml += `  <url>\n`;
+      xml += `    <loc>${baseUrl}/?article=${art.id}</loc>\n`;
+      xml += `    <lastmod>${artDate}</lastmod>\n`;
+      xml += `    <changefreq>daily</changefreq>\n`;
+      xml += `    <priority>0.6</priority>\n`;
+      xml += `    <news:news>\n`;
+      xml += `      <news:publication>\n`;
+      xml += `        <news:name>ИнфоЛента</news:name>\n`;
+      xml += `        <news:language>ru</news:language>\n`;
+      xml += `      </news:publication>\n`;
+      xml += `      <news:publication_date>${artDate}</news:publication_date>\n`;
+      xml += `      <news:title>${escapedTitle}</news:title>\n`;
+      xml += `    </news:news>\n`;
+      xml += `  </url>\n`;
+    }
+
+    xml += `</urlset>`;
+
+    res.header('Content-Type', 'application/xml; charset=utf-8');
+    res.header('Cache-Control', 'public, max-age=1800'); // Cache for 30 min
+    res.send(xml);
+  } catch (err) {
+    console.error('Error generating sitemap.xml:', err);
+    res.status(500).type('text/plain').send('Error generating sitemap');
+  }
+});
+
+// Fallback route for SPA frontend with strict Soft 404 prevention
 app.get('*', (req, res) => {
+  // If the request points to a missing file with an extension, return true 404
+  if (req.path.includes('.') && !req.path.endsWith('.html')) {
+    return res.status(404).type('text/plain').send('404 Not Found');
+  }
+
   const indexPath = path.join(clientDistPath, 'index.html');
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);

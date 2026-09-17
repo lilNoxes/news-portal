@@ -32,3 +32,6 @@ Thumbs.db
 # Private AI instruction files
 AGENTS.md
 GEMINI.md
+
+# SEO Audit artifacts
+*-audit/
