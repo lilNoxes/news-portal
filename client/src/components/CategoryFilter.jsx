@@ -1,9 +1,10 @@
 import React from 'react';
-import { Flame, Cpu, Briefcase, Atom, Layers, Bookmark } from 'lucide-react';
+import { Flame, Globe, Cpu, Briefcase, Atom, Layers, Bookmark } from 'lucide-react';
 
 const CATEGORY_ICONS = {
   'Все': Layers,
   'Главное': Flame,
+  'В мире': Globe,
   'Технологии': Cpu,
   'Бизнес': Briefcase,
   'Наука': Atom,
@@ -19,7 +20,7 @@ export default function CategoryFilter({
   setShowBookmarksOnly,
   bookmarkCount = 0
 }) {
-  const baseCategories = ['Все', 'Главное', 'Технологии', 'Бизнес', 'Наука'];
+  const baseCategories = ['Все', 'Главное', 'В мире', 'Технологии', 'Бизнес', 'Наука'];
 
   // Map existing counts from backend
   const countMap = {};

@@ -147,7 +147,13 @@ const defaultSources = [
   { name: 'Хабр (IT & Разработка)', url: 'https://habr.com/ru/rss/all/all/', category: 'Технологии' },
   { name: '3DNews (Гаджеты и IT)', url: 'https://3dnews.ru/news/rss/', category: 'Технологии' },
   { name: 'CNews (Высокие технологии)', url: 'https://www.cnews.ru/inc/rss/news.xml', category: 'Технологии' },
-  { name: 'N+1 (Наука)', url: 'https://nplus1.ru/rss', category: 'Наука' }
+  { name: 'N+1 (Наука)', url: 'https://nplus1.ru/rss', category: 'Наука' },
+  { name: 'Lenta.ru (Мир)', url: 'https://lenta.ru/rss/news/world', category: 'В мире' },
+  { name: 'The Guardian (World)', url: 'https://www.theguardian.com/world/rss', category: 'В мире' },
+  { name: 'Al Jazeera (World)', url: 'https://www.aljazeera.com/xml/rss/all.xml', category: 'В мире' },
+  { name: 'TechCrunch', url: 'https://techcrunch.com/feed/', category: 'Технологии' },
+  { name: 'The Verge', url: 'https://www.theverge.com/rss/index.xml', category: 'Технологии' },
+  { name: 'Ars Technica', url: 'https://feeds.arstechnica.com/arstechnica/index', category: 'Наука' }
 ];
 
 const insertSource = db.prepare(`

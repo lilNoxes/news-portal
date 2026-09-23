@@ -264,6 +264,7 @@ export default function AdminPanelModal({
                 className="px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs focus:ring-2 focus:ring-sky-500/20 focus:outline-none"
               >
                 <option value="Главное">Главное</option>
+                <option value="В мире">В мире</option>
                 <option value="Технологии">Технологии</option>
                 <option value="Бизнес">Бизнес</option>
                 <option value="Наука">Наука</option>

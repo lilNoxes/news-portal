@@ -12,7 +12,13 @@ const SOURCE_DOTS = {
   'Хабр (IT & Разработка)': 'bg-sky-500',
   '3DNews (Гаджеты и IT)': 'bg-cyan-500',
   'CNews (Высокие технологии)': 'bg-emerald-500',
-  'N+1 (Наука)': 'bg-teal-500'
+  'N+1 (Наука)': 'bg-teal-500',
+  'Lenta.ru (Мир)': 'bg-amber-500',
+  'The Guardian (World)': 'bg-sky-500',
+  'Al Jazeera (World)': 'bg-orange-500',
+  'TechCrunch': 'bg-green-500',
+  'The Verge': 'bg-violet-500',
+  'Ars Technica': 'bg-amber-600'
 };
 
 export default function NewsCard({

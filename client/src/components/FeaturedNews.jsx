@@ -12,7 +12,13 @@ const SOURCE_DOTS = {
   'Хабр (IT & Разработка)': 'bg-sky-400',
   '3DNews (Гаджеты и IT)': 'bg-cyan-400',
   'CNews (Высокие технологии)': 'bg-emerald-400',
-  'N+1 (Наука)': 'bg-teal-400'
+  'N+1 (Наука)': 'bg-teal-400',
+  'Lenta.ru (Мир)': 'bg-amber-400',
+  'The Guardian (World)': 'bg-sky-400',
+  'Al Jazeera (World)': 'bg-orange-400',
+  'TechCrunch': 'bg-green-400',
+  'The Verge': 'bg-violet-400',
+  'Ars Technica': 'bg-amber-500'
 };
 
 export default function FeaturedNews({

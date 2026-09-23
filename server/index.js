@@ -408,7 +408,7 @@ app.get('/llms.txt', (req, res) => {
 app.get('/sitemap.xml', (req, res) => {
   try {
     const baseUrl = 'https://newsjqke.infrlo.com';
-    const categories = ['Главное', 'Технологии', 'Бизнес', 'Наука'];
+    const categories = ['Главное', 'В мире', 'Технологии', 'Бизнес', 'Наука'];
     
     // Fetch latest 300 articles from SQLite
     const articles = db.prepare(`
